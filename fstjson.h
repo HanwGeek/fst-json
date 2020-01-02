@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: The header file for fstjson.c
  * @Date: 2020-01-01 21:27:19
- * @Last Modified: 2020-01-01 22:24:25
+ * @Last Modified: 2020-01-02 14:02:47
  */
 #ifndef FSTJSON_H_
 #define FSTJSON_H_
@@ -19,6 +19,7 @@ typedef enum {
   FST_OBJ} fst_type;
 
 typedef struct {
+  double n;
   fst_type type;
 } fst_value;
 
@@ -32,5 +33,7 @@ enum {
 int fst_parse(fst_value* v, const char* json);
 
 fst_type fst_get_type(const fst_value* v);
+
+double fst_get_number(const fst_value* v);
 
 #endif

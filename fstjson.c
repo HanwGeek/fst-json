@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: FstJson module
  * @Date: 2020-01-01 21:45:56
- * @Last Modified: 2020-01-02 12:11:08
+ * @Last Modified: 2020-01-02 13:57:04
  */
 #include "fstjson.h"
 #include <assert.h>
@@ -34,9 +34,9 @@ static int fst_parse_null(fst_context* c, fst_value* v) {
 }
 
 /* true == "true" */
-static int fst_parse_true(fst_context*c, fst_value* v) {
+static int fst_parse_true(fst_context* c, fst_value* v) {
   EXPECT(c, 't');
-  if (c->json[0] != 'r' || c->json[1] != 'u' || c->json[1] != 'e')
+  if (c->json[0] != 'r' || c->json[1] != 'u' || c->json[2] != 'e')
     return FST_PARSE_INVALID_VALUE;
   c->json += 3;
   v->type = FST_TRUE;
@@ -44,7 +44,7 @@ static int fst_parse_true(fst_context*c, fst_value* v) {
 }
 
 /* false == "false" */
-static int fst_parse_false(fst_context*c, fst_value* v) {
+static int fst_parse_false(fst_context* c, fst_value* v) {
   EXPECT(c, 'f');
   if (c->json[0] != 'a' || c->json[1] != 'l' || c->json[2] != 's' || c->json[3] != 'e')
     return FST_PARSE_INVALID_VALUE;
@@ -69,7 +69,12 @@ int fst_parse(fst_value* v, const char* json) {
   c.json = json;
   v->type = FST_NULL;
   fst_parse_whitespace(&c);
-  return fst_parse_value(&c, v);
+  int ret =  fst_parse_value(&c, v);
+  if (ret == FST_PARSE_OK) {
+    fst_parse_whitespace(&c);
+    if (*c.json != '\0') ret = FST_PARSE_ROOT_NOT_SINGULAR;
+  }
+  return ret;
 }
 
 fst_type fst_get_type(const fst_value* v) {

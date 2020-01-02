@@ -1,2 +1,0 @@
-/usr/bin/ar qc libfstjson.a  CMakeFiles/fstjson.dir/fstjson.c.o
-/usr/bin/ranlib libfstjson.a

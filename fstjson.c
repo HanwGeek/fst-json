@@ -3,17 +3,46 @@
  * @Github: https://github.com/HanwGeek
  * @Description: FstJson module
  * @Date: 2020-01-01 21:45:56
- * @Last Modified: 2020-01-02 15:04:56
+ * @Last Modified: 2020-01-02 21:50:50
  */
 #include "fstjson.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h> 
 
-#define EXPECT(c, ch) do{assert(*c->json == (ch)); c->json++;} while(0)
+#ifndef FST_PARSE_STACK_INIT_SIZE
+#define FST_PARSE_STACK_INIT_SIZE 256
+#endif
+
+#define EXPECT(c, ch) do {assert(*c->json == (ch)); c->json++;} while(0)
+#define ISDIGIT(ch) ((ch) >= '0' && (ch) <= '9')
+#define ISDIGIT1TO9(ch) ((ch) >= '1' && (ch) <= '9')
+#define PUTC(c, ch) do {*(char*)fst_context_push(c, sizeof(char)) = (ch);} while(0)
 
 typedef struct {
   const char* json;
+  char* stack;
+  size_t size, top;
 }fst_context;
+
+static void* fst_context_push(fst_context* c, size_t size) {
+  assert(size > 0);
+  if (c->top + size >= c->size) {
+    if (c->size == 0)
+      c->size = FST_PARSE_STACK_INIT_SIZE;
+    while (c->top + size >= c->size)
+      c->size += c->size >> 1;
+    c->stack = (char*)realloc(c->stack, c->size);
+  }
+  void* ret = c->stack + c->top;
+  c->top += size;
+  return ret;
+}
+
+static void* fst_context_pop(fst_context* c, size_t size) {
+  assert(c->top >= size);
+  return c->stack + (c->top -= size);
+}
 
 /* ws = *(%x20 / %x09 / %x0A / %x0D) * */
 static void fst_parse_whitespace(fst_context* c) {
@@ -38,9 +67,6 @@ static int fst_parse_literal(fst_context* c, fst_value* v, const char* literal, 
   return FST_PARSE_OK;
 }
 
-#define ISDIGIT(ch) ((ch) >= '0' && (ch) <= '9')
-#define ISDIGIT1TO9(ch) ((ch) >= '1' && (ch) <= '9')
-
 static int fst_parse_number(fst_context* c, fst_value* v) {
   const char* p = c->json;
   if (*p == '-') p++;
@@ -60,10 +86,48 @@ static int fst_parse_number(fst_context* c, fst_value* v) {
     if (!ISDIGIT(*p)) return FST_PARSE_INVALID_VALUE;
     for (p++; ISDIGIT(*p); p++);
   }
-  v->n = strtod(c->json, NULL);
+  v->u.n = strtod(c->json, NULL);
   c->json = p;
   v->type = FST_NUMBER;
   return FST_PARSE_OK;
+}
+
+static int fst_parse_string(fst_context* c, fst_value* v) {
+  size_t head = c->top, len;
+  EXPECT(c, '\"');  
+  const char* p = c->json;
+  for (;;) {
+    char ch = *p++;
+    switch (ch) {
+      case '\"': 
+        len = c->top - head;
+        fst_set_string(v, (const char*)fst_context_pop(c, len), len);
+        c->json = p;
+        return FST_PARSE_OK;
+      case '\\': 
+        switch (*p++) {
+          case '\"': PUTC(c, '\"'); break;
+          case '\\': PUTC(c, '\\'); break;
+          case '/':  PUTC(c, '/' ); break;
+          case 'b':  PUTC(c, '\b'); break;
+          case 'f':  PUTC(c, '\f'); break;
+          case 'n':  PUTC(c, '\n'); break;
+          case 'r':  PUTC(c, '\r'); break;
+          case 't':  PUTC(c, '\t'); break;
+          default:
+            c->top = head;
+            return FST_PARSE_INVALID_STRING_ESCAPE;
+        } break;
+      case '\0': 
+        c->top = head;
+        return FST_PARSE_MISS_QUOTATION_MARK;
+      default: if ((unsigned char)ch < 0x20) { 
+                    c->top = head;
+                    return FST_PARSE_INVALID_STRING_CHAR;
+                }
+                PUTC(c, ch);
+    }
+  }
 }
 
 static int fst_parse_value(fst_context* c, fst_value* v) {
@@ -71,15 +135,67 @@ static int fst_parse_value(fst_context* c, fst_value* v) {
     case 'n': return fst_parse_literal(c, v, "null", FST_NULL);
     case 't': return fst_parse_literal(c, v, "true", FST_TRUE);
     case 'f': return fst_parse_literal(c, v, "false", FST_FALSE);
+    case '\"': return fst_parse_string(c, v);
     default: return fst_parse_number(c, v);
     case '\0': return FST_PARSE_EXPECT_VALUE;
   }
+}
+
+void fst_free(fst_value* v) {
+  assert(v != NULL);
+  if (v->type == FST_STRING)
+    free(v->u.s.s);
+  v->type = FST_NULL;
+}
+
+int fst_get_boolean(const fst_value* v) {
+  assert(v != NULL && (v->type == FST_TRUE || v->type == FST_FALSE));
+  return v->type == FST_TRUE;
+  
+}
+
+void fst_set_boolean(fst_value* v, int b) {
+  fst_free(v);
+  v->type = b ? FST_TRUE : FST_FALSE;
+}
+
+double fst_get_number(const fst_value* v) {
+  assert(v != NULL && v->type == FST_NUMBER);
+  return v->u.n;
+}
+
+void fst_set_number(fst_value* v, double n) {
+  fst_free(v);
+  v->type = FST_NUMBER;
+  v->u.n = n;
+}
+
+const char* fst_get_string(const fst_value* v) {
+  assert(v != NULL && v->type == FST_STRING);
+  return v->u.s.s;
+}
+
+size_t fst_get_string_len(const fst_value* v) {
+  assert(v != NULL && v->type == FST_STRING);
+  return v->u.s.len;
+}
+
+void fst_set_string(fst_value* v, const char* s, size_t len) {
+  assert(v != NULL && (s != NULL || len == 0));
+  fst_free(v);
+  v->u.s.s = (char*)malloc(len + 1);
+  v->u.s.s[len] = '\0';
+  memcpy(v->u.s.s, s, len);
+  v->u.s.len = len;
+  v->type = FST_STRING;
 }
 
 int fst_parse(fst_value* v, const char* json) {
   fst_context c;
   assert(v != NULL);
   c.json = json;
+  c.stack = NULL;
+  c.size = c.top = 0;
   v->type = FST_NULL;
   fst_parse_whitespace(&c);
   int ret =  fst_parse_value(&c, v);
@@ -90,15 +206,12 @@ int fst_parse(fst_value* v, const char* json) {
       ret = FST_PARSE_ROOT_NOT_SINGULAR;
     }
   }
+  assert(c.top == 0);
+  free(c.stack);
   return ret;
 }
 
 fst_type fst_get_type(const fst_value* v) {
   assert(v != NULL);
   return v->type;
-}
-
-double fst_get_number(const fst_value* v) {
-  assert(v != NULL && v->type == FST_NUMBER);
-  return v->n;
 }

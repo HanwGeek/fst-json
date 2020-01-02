@@ -1,0 +1,1 @@
+/usr/bin/cc   -ansi -pedantic -Wall -g   CMakeFiles/fstjson_test.dir/test.c.o  -o fstjson_test -rdynamic libfstjson.a 

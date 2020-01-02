@@ -3,19 +3,19 @@
  * @Github: https://github.com/HanwGeek
  * @Description: The header file for fstjson.c
  * @Date: 2020-01-01 21:27:19
- * @Last Modified: 2020-01-01 21:31:50
+ * @Last Modified: 2020-01-01 22:24:25
  */
 #ifndef FSTJSON_H_
 #define FSTJSON_H_
 
-//* JSON file format
+/* JSON file format */
 typedef enum {
   FST_NULL, 
   FST_FALSE, 
   FST_TRUE, 
   FST_NUMBER,
   FST_STRING,
-  FST_ARRAY
+  FST_ARRAY,
   FST_OBJ} fst_type;
 
 typedef struct {

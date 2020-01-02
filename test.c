@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: Test module
  * @Date: 2020-01-01 21:32:35
- * @Last Modified: 2020-01-01 22:18:57
+ * @Last Modified: 2020-01-02 12:13:48
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,18 +62,18 @@ static void test_parse_expect_value() {
 static void test_parse_invalid_value() {
   fst_value v;
   v.type = FST_FALSE;
-  EXPECT_EQ_INT(FST_PARSE_INVALID_VALUE, fst_parse(v, "tur"));
+  EXPECT_EQ_INT(FST_PARSE_INVALID_VALUE, fst_parse(&v, "tur"));
   EXPECT_EQ_INT(FST_NULL, fst_get_type(&v));
 
   v.type = FST_FALSE;
-  EXPECT_EQ_INT(FST_PARSE_INVALID_VALUE, fst_parse(v, "'"));
+  EXPECT_EQ_INT(FST_PARSE_INVALID_VALUE, fst_parse(&v, "'"));
   EXPECT_EQ_INT(FST_NULL, fst_get_type(&v));
 }
 
 static void test_parse_root_not_singular() {
-  fst_type v;
+  fst_value v;
   v.type = FST_FALSE;
-  EXPECT_EQ_INT(FST_PARSE_ROOT_NOT_SINGULAR, fst_parse(v, "null x"));
+  EXPECT_EQ_INT(FST_PARSE_ROOT_NOT_SINGULAR, fst_parse(&v, "null x"));
   EXPECT_EQ_INT(FST_NULL, fst_get_type(&v));
 }
 
@@ -88,6 +88,6 @@ static void test_parse() {
 
 int main() {
   test_parse();
-  printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100 / test_count);
+  printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
   return main_ret;
 }

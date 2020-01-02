@@ -1,0 +1,4 @@
+/home/han/Repos/FstJson/build/CMakeFiles/rebuild_cache.dir
+/home/han/Repos/FstJson/build/CMakeFiles/edit_cache.dir
+/home/han/Repos/FstJson/build/CMakeFiles/fstjson_test.dir
+/home/han/Repos/FstJson/build/CMakeFiles/fstjson.dir

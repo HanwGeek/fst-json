@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: Test module
  * @Date: 2020-01-01 21:32:35
- * @Last Modified: 2020-01-02 21:34:50
+ * @Last Modified: 2020-01-03 13:36:46
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +30,11 @@ static int test_pass = 0;
 #define EXPECT_EQ_STRING(expect, actual, length) EXPECT_EQ_BASE((sizeof(expect) - 1 == length && memcmp(expect, actual, length) == 0), expect, actual, "%s")
 #define EXPECT_TRUE(actual) EXPECT_EQ_BASE((actual) != 0, "true", "false", "%s")
 #define EXPECT_FALSE(actual) EXPECT_EQ_BASE((actual) == 0, "false", "true", "%s")
+#if defined(_MSC_VER)
+#define EXPECT_EQ_SIZE_T(expect, actual) EXPECT_EQ_BASE((expect) == (actual), (size_t)expect, (size_t)actual, "%Iu")
+#else
+#define EXPECT_EQ_SIZE_T(expect, actual) EXPECT_EQ_BASE((expect) == (actual), (size_t)expect, (size_t)actual, "%zu")
+#endif
 
 static void test_parse_null() {
   fst_value v;
@@ -163,6 +168,45 @@ static void test_parse_invalid_string_char() {
     TEST_ERROR(FST_PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
 }
 
+static void test_parse_array() {
+  fst_value v;
+  
+  fst_init(&v);
+  EXPECT_EQ_INT(FST_PARSE_OK, fst_parse(&v, "[ ]"));
+  EXPECT_EQ_INT(FST_ARRAY, fst_get_type(&v));
+  EXPECT_EQ_SIZE_T(0, fst_get_array_size(&v));
+  fst_free(&v);
+
+  fst_init(&v);
+  EXPECT_EQ_INT(FST_PARSE_OK, fst_parse(&v, "[ null , false , true , 123 , \"abc\" ]"));
+  EXPECT_EQ_INT(FST_ARRAY, fst_get_type(&v));
+  EXPECT_EQ_SIZE_T(5, fst_get_array_size(&v));
+  EXPECT_EQ_INT(FST_NULL,   fst_get_type(fst_get_array_elem(&v, 0)));
+  EXPECT_EQ_INT(FST_FALSE,  fst_get_type(fst_get_array_elem(&v, 1)));
+  EXPECT_EQ_INT(FST_TRUE,   fst_get_type(fst_get_array_elem(&v, 2)));
+  EXPECT_EQ_INT(FST_NUMBER, fst_get_type(fst_get_array_elem(&v, 3)));
+  EXPECT_EQ_INT(FST_STRING, fst_get_type(fst_get_array_elem(&v, 4)));
+  EXPECT_EQ_DOUBLE(123.0, fst_get_number(fst_get_array_elem(&v, 3)));
+  EXPECT_EQ_STRING("abc", fst_get_string(fst_get_array_elem(&v, 4)), fst_get_string_len(fst_get_array_elem(&v, 4)));
+  fst_free(&v);
+
+  fst_init(&v);
+  EXPECT_EQ_INT(FST_PARSE_OK, fst_parse(&v, "[ [ ] , [ 0 ] , [ 0 , 1 ] , [ 0 , 1 , 2 ] ]"));
+  EXPECT_EQ_INT(FST_ARRAY, fst_get_type(&v));
+  EXPECT_EQ_SIZE_T(4, fst_get_array_size(&v));
+  for (size_t i = 0; i < 4; i++) {
+    fst_value* a = fst_get_array_elem(&v, i);
+    EXPECT_EQ_INT(FST_ARRAY, fst_get_type(a));
+    EXPECT_EQ_SIZE_T(i, fst_get_array_size(a));
+    for (size_t j = 0; j < i; j++) {
+      fst_value* e = fst_get_array_elem(a, j);
+      EXPECT_EQ_INT(FST_NUMBER, fst_get_type(e));
+      EXPECT_EQ_DOUBLE((double)j, fst_get_number(e));
+    }
+  }
+  fst_free(&v);  
+}
+
 static void test_access_null() {
   fst_value v;
   fst_init(&v);
@@ -208,6 +252,7 @@ static void test_parse() {
   test_parse_false();
   test_parse_number();
   test_parse_string();
+  test_parse_array();
   test_parse_expect_value();
   test_parse_invalid_value();
   test_parse_root_not_singular();

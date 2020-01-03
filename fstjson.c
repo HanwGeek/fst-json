@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: FstJson module
  * @Date: 2020-01-01 21:45:56
- * @Last Modified: 2020-01-03 11:12:11
+ * @Last Modified: 2020-01-03 13:34:08
  */
 #include "fstjson.h"
 #include <assert.h>
@@ -26,6 +26,7 @@ typedef struct {
   size_t size, top;
 }fst_context;
 
+/* Push `size` elem into stack, return top of stack */
 static void* fst_context_push(fst_context* c, size_t size) {
   assert(size > 0);
   if (c->top + size >= c->size) {
@@ -40,6 +41,7 @@ static void* fst_context_push(fst_context* c, size_t size) {
   return ret;
 }
 
+/* Pop `size` elem, return top of stack */
 static void* fst_context_pop(fst_context* c, size_t size) {
   assert(c->top >= size);
   return c->stack + (c->top -= size);
@@ -177,6 +179,37 @@ static int fst_parse_string(fst_context* c, fst_value* v) {
     }
   }
 }
+static int fst_parse_value(fst_context* c, fst_value* v);
+static int fst_parse_array(fst_context* c, fst_value* v) {
+  size_t size = 0;
+  int ret;
+  EXPECT(c, '[');
+  if (*c->json == ']') {
+    c->json++;
+    v->type = FST_ARRAY;
+    v->u.a.size = 0;
+    v->u.a.e = NULL;
+    return FST_PARSE_OK;
+  }
+  for (;;) {
+    fst_value t;
+    fst_init(&t);
+    if ((ret = fst_parse_value(c, &t)) != FST_PARSE_OK);
+      return ret;
+    memcpy(fst_context_push(c, sizeof(fst_value)), &t, sizeof(fst_value));
+    size++;
+    if (*c->json == ',')
+      c->json++;
+    else if (*c->json == ']') {
+      c->json++;
+      v->type = FST_ARRAY;
+      v->u.a.size = size;
+      memcpy(v->u.a.e = (fst_value*)malloc(size), fst_context_pop(c, size), size);
+      return FST_PARSE_OK;
+    }
+    else return FST_PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
+  }
+}
 
 static int fst_parse_value(fst_context* c, fst_value* v) {
   switch (*c->json) {
@@ -184,6 +217,7 @@ static int fst_parse_value(fst_context* c, fst_value* v) {
     case 't': return fst_parse_literal(c, v, "true", FST_TRUE);
     case 'f': return fst_parse_literal(c, v, "false", FST_FALSE);
     case '\"': return fst_parse_string(c, v);
+    case '[': return fst_parse_array(c, v);
     default: return fst_parse_number(c, v);
     case '\0': return FST_PARSE_EXPECT_VALUE;
   }
@@ -199,7 +233,6 @@ void fst_free(fst_value* v) {
 int fst_get_boolean(const fst_value* v) {
   assert(v != NULL && (v->type == FST_TRUE || v->type == FST_FALSE));
   return v->type == FST_TRUE;
-  
 }
 
 void fst_set_boolean(fst_value* v, int b) {
@@ -236,6 +269,17 @@ void fst_set_string(fst_value* v, const char* s, size_t len) {
   memcpy(v->u.s.s, s, len);
   v->u.s.len = len;
   v->type = FST_STRING;
+}
+
+size_t fst_get_array_size(const fst_value* v) {
+  assert (v != NULL && v->type == FST_ARRAY);
+  return v->u.a.size;
+}
+
+fst_value* fst_get_array_elem(const fst_value* v, size_t index) {
+  assert(v != NULL && v->type == FST_ARRAY);
+  assert(index < v->u.a.size);
+  return &v->u.a.e[index];
 }
 
 int fst_parse(fst_value* v, const char* json) {

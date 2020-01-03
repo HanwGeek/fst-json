@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: The header file for fstjson.c
  * @Date: 2020-01-01 21:27:19
- * @Last Modified: 2020-01-03 13:31:50
+ * @Last Modified: 2020-01-03 20:01:22
  */
 #ifndef FSTJSON_H_
 #define FSTJSON_H_
@@ -21,13 +21,22 @@ typedef enum {
   FST_OBJ} fst_type;
 
 typedef struct fst_value fst_value;
+typedef struct fst_member fst_member;
+
 struct fst_value {
   union {
+    struct {fst_member* m; size_t size;} o;
     struct {fst_value* e; size_t size;} a; /* array */
     struct {char* s; size_t len;} s;
     double n;
   } u;
   fst_type type;
+};
+
+struct fst_member {
+  char* k; 
+  fst_value v;
+  size_t klen;
 };
 
 enum {
@@ -41,7 +50,10 @@ enum {
   FST_PARSE_INVALID_STRING_CHAR,
   FST_PARSE_INVALID_UNICODE_HEX,
   FST_PARSE_INVALID_UNICODE_SURROGATE,
-  FST_PARSE_MISS_COMMA_OR_SQUARE_BRACKET
+  FST_PARSE_MISS_COMMA_OR_SQUARE_BRACKET,
+  FST_PARSE_MISS_KEY,
+  FST_PARSE_MISS_COLON,
+  FST_PARSE_MISS_COMMA_OR_CURLY_BRACKET
 };
 
 #define fst_init(v) do {(v)->type = FST_NULL;} while(0)
@@ -66,5 +78,10 @@ void fst_set_string(fst_value* v, const char* s, size_t len);
 
 size_t fst_get_array_size(const fst_value* v);
 fst_value* fst_get_array_elem(const fst_value* v, size_t index);
+
+size_t fst_get_object_size(const fst_value* v);
+const char* fst_get_object_key(const fst_value* v, size_t index);
+size_t fst_get_object_key_length(const fst_value* v, size_t index);
+fst_value* fst_get_object_value(const fst_value* v, size_t index);
 
 #endif

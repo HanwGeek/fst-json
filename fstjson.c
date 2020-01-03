@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: FstJson module
  * @Date: 2020-01-01 21:45:56
- * @Last Modified: 2020-01-03 16:07:47
+ * @Last Modified: 2020-01-03 21:31:23
  */
 #include "fstjson.h"
 #include <assert.h>
@@ -26,7 +26,7 @@ typedef struct {
   size_t size, top;
 }fst_context;
 
-/* Push `size` elem into stack, return last top of stack */
+/* Allocate `size` memory to stack, return top of stack */
 static void* fst_context_push(fst_context* c, size_t size) {
   assert(size > 0);
   if (c->top + size >= c->size) {
@@ -41,7 +41,7 @@ static void* fst_context_push(fst_context* c, size_t size) {
   return ret;
 }
 
-/* Pop `size` elem, return top of stack */
+/* Pop `size` elem, return top of stack after */
 static void* fst_context_pop(fst_context* c, size_t size) {
   assert(c->top >= size);
   return c->stack + (c->top -= size);
@@ -129,8 +129,8 @@ static void fst_encode_utf8(fst_context* c, unsigned u) {
   }  
 }
 
-static int fst_parse_string(fst_context* c, fst_value* v) {
-  size_t head = c->top, len;
+static int fst_parse_string_raw(fst_context* c, char** str, size_t* len) {
+  size_t head = c->top;
   EXPECT(c, '\"');  
   const char* p = c->json;
   unsigned u, u2;
@@ -138,8 +138,8 @@ static int fst_parse_string(fst_context* c, fst_value* v) {
     char ch = *p++;
     switch (ch) {
       case '\"': 
-        len = c->top - head;
-        fst_set_string(v, (const char*)fst_context_pop(c, len), len);
+        *len = c->top - head;
+        *str = fst_context_pop(c, *len);
         c->json = p;
         return FST_PARSE_OK;
       case '\\': 
@@ -177,8 +177,18 @@ static int fst_parse_string(fst_context* c, fst_value* v) {
                   STRING_ERR(FST_PARSE_INVALID_STRING_CHAR);            
                 PUTC(c, ch);
     }
-  }
+  }  
 }
+
+static int fst_parse_string(fst_context* c, fst_value* v) {
+  int ret;
+  char* s;
+  size_t len;
+  if ((ret = fst_parse_string_raw(c, &s, &len)) == FST_PARSE_OK)
+    fst_set_string(v, s, len);
+  return ret;
+}
+
 static int fst_parse_value(fst_context* c, fst_value* v);
 static int fst_parse_array(fst_context* c, fst_value* v) {
   size_t size = 0;
@@ -220,6 +230,75 @@ static int fst_parse_array(fst_context* c, fst_value* v) {
   return ret;
 }
 
+static int fst_parse_object(fst_context* c, fst_value* v) {
+  EXPECT(c, '{');
+  fst_member m;
+  size_t size;
+  int ret;
+  fst_parse_whitespace(c);
+  if (*c->json == '}') {
+    c->json++;
+    v->type = FST_OBJ;
+    v->u.o.m = NULL;
+    v->u.o.size = 0;
+    return FST_PARSE_OK;
+  }
+
+  m.k = NULL;
+  size = 0;
+  for (;;) {
+    fst_init(&m.v);
+    if (*c->json != '"') {
+      ret = FST_PARSE_MISS_KEY;
+      break;
+    }
+    char* str;
+    if ((ret = fst_parse_string_raw(c, &str, &m.klen)) != FST_PARSE_OK)
+      break;
+    memcpy(m.k = (char*)malloc(m.klen + 1), str, m.klen);
+    m.k[m.klen] = '\0';
+
+    fst_parse_whitespace(c);
+    if (*c->json != ':') {
+      ret = FST_PARSE_MISS_COLON;
+      break;
+    }
+
+    c->json++;
+    fst_parse_whitespace(c);
+
+    if ((ret = fst_parse_value(c, &m.v)) != FST_PARSE_OK)
+      break;
+    memcpy(fst_context_push(c, sizeof(fst_member)), &m, sizeof(fst_member));
+    size++;
+    m.k = NULL;
+
+    fst_parse_whitespace(c);
+    if (*c->json == ',') {
+      c->json++;
+      fst_parse_whitespace(c);
+    } else if (*c->json == '}') {
+      c->json++;
+      v->u.o.size = size;
+      size_t s = sizeof(fst_member) * size;
+      memcpy(v->u.o.m = (fst_member*)malloc(s), fst_context_pop(c, s), s);
+      v->type = FST_OBJ;
+      return FST_PARSE_OK;
+    } else {
+      ret = FST_PARSE_MISS_COMMA_OR_CURLY_BRACKET;
+      break;
+    }
+  }
+  free(m.k);
+  for (size_t i = 0; i < size; i++) {
+    fst_member* m = (fst_member*)fst_context_pop(c, sizeof(fst_member));
+    free(m->k);
+    fst_free(&m->v);
+  }
+  v->type = FST_NULL;
+  return ret;
+}
+
 static int fst_parse_value(fst_context* c, fst_value* v) {
   switch (*c->json) {
     case 'n': return fst_parse_literal(c, v, "null", FST_NULL);
@@ -227,6 +306,7 @@ static int fst_parse_value(fst_context* c, fst_value* v) {
     case 'f': return fst_parse_literal(c, v, "false", FST_FALSE);
     case '\"': return fst_parse_string(c, v);
     case '[': return fst_parse_array(c, v);
+    case '{': return fst_parse_object(c, v);
     default: return fst_parse_number(c, v);
     case '\0': return FST_PARSE_EXPECT_VALUE;
   }
@@ -237,9 +317,16 @@ void fst_free(fst_value* v) {
   switch (v->type) {
     case FST_STRING: free(v->u.s.s); break;
     case FST_ARRAY:
-      for (size_t i; i < v->u.a.size; i++)
+      for (size_t i = 0; i < v->u.a.size; i++)
         fst_free(&v->u.a.e[i]);
       free(v->u.a.e);
+      break;
+    case FST_OBJ:
+      for (size_t i = 0; i < v->u.o.size; i++) {
+        free(v->u.o.m[i].k);
+        fst_free(&v->u.o.m[i].v);
+      }
+      free(v->u.o.m);
       break;
     default: break;
   }

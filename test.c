@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: Test module
  * @Date: 2020-01-01 21:32:35
- * @Last Modified: 2020-01-03 13:36:46
+ * @Last Modified: 2020-01-03 20:00:58
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -207,6 +207,29 @@ static void test_parse_array() {
   fst_free(&v);  
 }
 
+static void test_parse_miss_key() {
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{:1,");
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{1:1,");
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{true:1,");
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{false:1,");
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{null:1,");
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{[]:1,");
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{{}:1,");
+    TEST_ERROR(FST_PARSE_MISS_KEY, "{\"a\":1,");
+}
+
+static void test_parse_miss_colon() {
+    TEST_ERROR(FST_PARSE_MISS_COLON, "{\"a\"}");
+    TEST_ERROR(FST_PARSE_MISS_COLON, "{\"a\",\"b\"}");
+}
+
+static void test_parse_miss_comma_or_curly_bracket() {
+    TEST_ERROR(FST_PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":1");
+    TEST_ERROR(FST_PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":1]");
+    TEST_ERROR(FST_PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":1 \"b\"");
+    TEST_ERROR(FST_PARSE_MISS_COMMA_OR_CURLY_BRACKET, "{\"a\":{}");
+}
+
 static void test_access_null() {
   fst_value v;
   fst_init(&v);
@@ -259,6 +282,9 @@ static void test_parse() {
   test_parse_missing_quotation_mark();
   test_parse_invalid_string_escape();
   test_parse_invalid_string_char();
+  test_parse_miss_key();
+  test_parse_miss_colon();
+  test_parse_miss_comma_or_curly_bracket();
 
   test_access_null();
   test_access_boolean();

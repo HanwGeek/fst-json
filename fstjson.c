@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: FstJson module
  * @Date: 2020-01-01 21:45:56
- * @Last Modified: 2020-01-03 13:34:08
+ * @Last Modified: 2020-01-03 16:07:47
  */
 #include "fstjson.h"
 #include <assert.h>
@@ -26,7 +26,7 @@ typedef struct {
   size_t size, top;
 }fst_context;
 
-/* Push `size` elem into stack, return top of stack */
+/* Push `size` elem into stack, return last top of stack */
 static void* fst_context_push(fst_context* c, size_t size) {
   assert(size > 0);
   if (c->top + size >= c->size) {
@@ -184,6 +184,7 @@ static int fst_parse_array(fst_context* c, fst_value* v) {
   size_t size = 0;
   int ret;
   EXPECT(c, '[');
+  fst_parse_whitespace(c);
   if (*c->json == ']') {
     c->json++;
     v->type = FST_ARRAY;
@@ -194,21 +195,29 @@ static int fst_parse_array(fst_context* c, fst_value* v) {
   for (;;) {
     fst_value t;
     fst_init(&t);
-    if ((ret = fst_parse_value(c, &t)) != FST_PARSE_OK);
-      return ret;
+    if ((ret = fst_parse_value(c, &t)) != FST_PARSE_OK)
+      break;
     memcpy(fst_context_push(c, sizeof(fst_value)), &t, sizeof(fst_value));
     size++;
-    if (*c->json == ',')
+    fst_parse_whitespace(c);
+    if (*c->json == ',') {
       c->json++;
-    else if (*c->json == ']') {
+      fst_parse_whitespace(c);
+    } else if (*c->json == ']') {
       c->json++;
       v->type = FST_ARRAY;
       v->u.a.size = size;
+      size *= sizeof(fst_value);
       memcpy(v->u.a.e = (fst_value*)malloc(size), fst_context_pop(c, size), size);
       return FST_PARSE_OK;
+    } else {
+      ret = FST_PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
+      break;
     }
-    else return FST_PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
   }
+  for (size_t i = 0; i < size; i++)
+    fst_free((fst_value*)fst_context_pop(c, sizeof(fst_value)));
+  return ret;
 }
 
 static int fst_parse_value(fst_context* c, fst_value* v) {
@@ -225,8 +234,15 @@ static int fst_parse_value(fst_context* c, fst_value* v) {
 
 void fst_free(fst_value* v) {
   assert(v != NULL);
-  if (v->type == FST_STRING)
-    free(v->u.s.s);
+  switch (v->type) {
+    case FST_STRING: free(v->u.s.s); break;
+    case FST_ARRAY:
+      for (size_t i; i < v->u.a.size; i++)
+        fst_free(&v->u.a.e[i]);
+      free(v->u.a.e);
+      break;
+    default: break;
+  }
   v->type = FST_NULL;
 }
 

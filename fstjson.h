@@ -3,7 +3,7 @@
  * @Github: https://github.com/HanwGeek
  * @Description: The header file for fstjson.c
  * @Date: 2020-01-01 21:27:19
- * @Last Modified: 2020-01-02 21:08:44
+ * @Last Modified: 2020-01-03 11:09:18
  */
 #ifndef FSTJSON_H_
 #define FSTJSON_H_
@@ -36,7 +36,9 @@ enum {
   FST_PARSE_NUMBER_TOO_BIG,
   FST_PARSE_MISS_QUOTATION_MARK,
   FST_PARSE_INVALID_STRING_ESCAPE,
-  FST_PARSE_INVALID_STRING_CHAR
+  FST_PARSE_INVALID_STRING_CHAR,
+  FST_PARSE_INVALID_UNICODE_HEX,
+  FST_PARSE_INVALID_UNICODE_SURROGATE
 };
 
 #define fst_init(v) do {(v)->type = FST_NULL;} while(0)
